@@ -1515,6 +1515,56 @@ class BaseMethodIntrospectorTest(TestCase, DocumentationGeneratorMixin):
         param = params[1]
         self.assertFalse(hasattr(param, 'enum'))
 
+    def test_build_form_parameters_nested(self):
+        class SomeSerializer(serializers.Serializer):
+            thing1 = serializers.CharField()
+
+        class MySerializer(serializers.Serializer):
+            thing2 = SomeSerializer()
+
+        class MyAPIView(ListCreateAPIView):
+            serializer_class = MySerializer
+        class_introspector = self.make_introspector2(MyAPIView)
+        introspector = APIViewMethodIntrospector(class_introspector, 'POST')
+        params = introspector.build_form_parameters()
+
+        self.assertEqual(1, len(params))
+        param = params[0]
+        self.assertEqual("SomeSerializer", param['type'])
+
+    def test_build_form_parameters_nested_many(self):
+        class SomeSerializer(serializers.Serializer):
+            thing1 = serializers.CharField()
+
+        class MySerializer(serializers.Serializer):
+            thing2 = SomeSerializer(many=True)
+
+        class MyAPIView(ListCreateAPIView):
+            serializer_class = MySerializer
+        class_introspector = self.make_introspector2(MyAPIView)
+        introspector = APIViewMethodIntrospector(class_introspector, 'POST')
+        params = introspector.build_form_parameters()
+
+        self.assertEqual(1, len(params))
+        param = params[0]
+        self.assertEqual("array", param['type'])
+        self.assertEqual("SomeSerializer", param['items']['$ref'])
+
+    def test_build_form_parameters_list_field(self):
+        class MySerializer(serializers.Serializer):
+            thing2 = serializers.ListField(child=serializers.IntegerField())
+
+        class MyAPIView(ListCreateAPIView):
+            serializer_class = MySerializer
+        class_introspector = self.make_introspector2(MyAPIView)
+        introspector = APIViewMethodIntrospector(class_introspector, 'POST')
+        params = introspector.build_form_parameters()
+
+        self.assertEqual(1, len(params))
+        param = params[0]
+        self.assertEqual("array", param['type'])
+        self.assertEqual("integer", param['items']['type'])
+
 
 class YAMLDocstringParserTests(TestCase, DocumentationGeneratorMixin):
     def make_introspector(self, view_class):
