@@ -664,6 +664,17 @@ class DocumentationGeneratorTest(TestCase, DocumentationGeneratorMixin):
         self.assertEqual(1, len(fields['fields']))
         self.assertEqual("array", fields['fields']['thing2']['type'])
 
+    def test_get_serializer_fields_api_with_list_field(self):
+        class SomeSerializer(serializers.Serializer):
+            thing2 = serializers.ListField(child=serializers.IntegerField())
+
+        docgen = self.get_documentation_generator()
+        fields = docgen._get_serializer_fields(SomeSerializer)
+
+        self.assertEqual(1, len(fields['fields']))
+        self.assertEqual("array", fields['fields']['thing2']['type'])
+        self.assertEqual("integer", fields['fields']['thing2']['items']['type'])
+
     def test_nested_serializer(self):
         class ASerializer(serializers.Serializer):
             point = CommentSerializer()
@@ -1434,6 +1445,10 @@ class BaseMethodIntrospectorTest(TestCase, DocumentationGeneratorMixin):
             content = serializers.CharField(
                 max_length=200, min_length=10, default="Vandalay Industries")
             a_read_only_field = serializers.BooleanField(read_only=True)
+            another_read_only_field = serializers.BooleanField()
+
+            class Meta:
+                read_only_fields = ('a_read_only_field', 'another_read_only_field')
 
         class MyAPIView(ListCreateAPIView):
             serializer_class = MySerializer
@@ -1503,6 +1518,56 @@ class BaseMethodIntrospectorTest(TestCase, DocumentationGeneratorMixin):
         self.assertEqual([item for item, _ in MY_CHOICES], param['enum'])
         param = params[1]
         self.assertFalse(hasattr(param, 'enum'))
+
+    def test_build_form_parameters_nested(self):
+        class SomeSerializer(serializers.Serializer):
+            thing1 = serializers.CharField()
+
+        class MySerializer(serializers.Serializer):
+            thing2 = SomeSerializer()
+
+        class MyAPIView(ListCreateAPIView):
+            serializer_class = MySerializer
+        class_introspector = self.make_introspector2(MyAPIView)
+        introspector = APIViewMethodIntrospector(class_introspector, 'POST')
+        params = introspector.build_form_parameters()
+
+        self.assertEqual(1, len(params))
+        param = params[0]
+        self.assertEqual("SomeSerializer", param['type'])
+
+    def test_build_form_parameters_nested_many(self):
+        class SomeSerializer(serializers.Serializer):
+            thing1 = serializers.CharField()
+
+        class MySerializer(serializers.Serializer):
+            thing2 = SomeSerializer(many=True)
+
+        class MyAPIView(ListCreateAPIView):
+            serializer_class = MySerializer
+        class_introspector = self.make_introspector2(MyAPIView)
+        introspector = APIViewMethodIntrospector(class_introspector, 'POST')
+        params = introspector.build_form_parameters()
+
+        self.assertEqual(1, len(params))
+        param = params[0]
+        self.assertEqual("array", param['type'])
+        self.assertEqual("SomeSerializer", param['items']['$ref'])
+
+    def test_build_form_parameters_list_field(self):
+        class MySerializer(serializers.Serializer):
+            thing2 = serializers.ListField(child=serializers.IntegerField())
+
+        class MyAPIView(ListCreateAPIView):
+            serializer_class = MySerializer
+        class_introspector = self.make_introspector2(MyAPIView)
+        introspector = APIViewMethodIntrospector(class_introspector, 'POST')
+        params = introspector.build_form_parameters()
+
+        self.assertEqual(1, len(params))
+        param = params[0]
+        self.assertEqual("array", param['type'])
+        self.assertEqual("integer", param['items']['type'])
 
 
 class YAMLDocstringParserTests(TestCase, DocumentationGeneratorMixin):
