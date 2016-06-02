@@ -664,7 +664,10 @@ class DocumentationGeneratorTest(TestCase, DocumentationGeneratorMixin):
         self.assertEqual(1, len(fields['fields']))
         self.assertEqual("array", fields['fields']['thing2']['type'])
 
-    def test_get_serializer_fields_api_with_list_field(self):
+    def test_get_serializer_fields_api_with_listfield_drf3(self):
+        if StrictVersion(rest_framework.VERSION) < StrictVersion('3.0'):
+            raise SkipTest('Only for DRF>=3.0')
+
         class SomeSerializer(serializers.Serializer):
             thing2 = serializers.ListField(child=serializers.IntegerField())
 
@@ -1550,7 +1553,10 @@ class BaseMethodIntrospectorTest(TestCase, DocumentationGeneratorMixin):
         self.assertEqual("array", param['type'])
         self.assertEqual("SomeSerializer", param['items']['$ref'])
 
-    def test_build_form_parameters_list_field(self):
+    def test_build_form_parameters_listfield_drf3(self):
+        if StrictVersion(rest_framework.VERSION) < StrictVersion('3.0'):
+            raise SkipTest('Only for DRF>=3.0')
+
         class MySerializer(serializers.Serializer):
             thing2 = serializers.ListField(child=serializers.IntegerField())
 
